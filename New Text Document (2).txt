@@ -1,0 +1,6 @@
+git init
+git add .
+git commit -m "ResumeMint Init"
+git branch -M main
+git remote add origin https://github.com/peteration/resumemint.git
+git push -u origin main

@@ -1,0 +1,69 @@
+resumemint/
+├── .gitignore
+├── README.md
+├── netlify.toml
+├── package.json
+├── tsconfig.json
+├── postcss.config.js
+├── tailwind.config.js
+├── next.config.mjs
+├── .env.local   (not committed)
+│
+└── src/
+    ├── app/
+    │   ├── layout.tsx
+    │   ├── page.tsx
+    │   │
+    │   ├── (marketing)/
+    │   │   ├── about/page.tsx
+    │   │   └── pricing/page.tsx
+    │   │
+    │   ├── auth/
+    │   │   ├── login/page.tsx
+    │   │   ├── register/page.tsx
+    │   │   └── reset/page.tsx
+    │   │
+    │   ├── dashboard/
+    │   │   ├── page.tsx
+    │   │   └── _client.tsx
+    │   │
+    │   ├── editor/
+    │   │   ├── page.tsx
+    │   │   └── _client.tsx
+    │   │
+    │   ├── resume/
+    │   │   └── [id]/page.tsx
+    │   │
+    │   └── api/
+    │       ├── ai/
+    │       │   └── route.ts        (AI resume/cover letter generation)
+    │       ├── pdf/
+    │       │   └── route.ts        (PDF rendering/export)
+    │       ├── templates/
+    │       │   └── route.ts        (List + save templates)
+    │       └── billing/
+    │           └── route.ts        (Premium purchase + usage-based AI credit)
+    │
+    ├── components/
+    │   ├── ui/                     (Shadcn components)
+    │   ├── shared/                 (Navbar, Footer, Sidebar, Loader)
+    │   ├── forms/                  (LoginForm, RegisterForm, ResumeForms)
+    │   └── resume-templates/
+    │       ├── Classic.tsx
+    │       ├── Modern.tsx
+    │       └── Elegant.tsx
+    │
+    ├── lib/
+    │   ├── supabaseClient.ts       (Auth + DB connection)
+    │   ├── openai.ts               (OpenAI wrapper with token budgeting)
+    │   ├── pdf.ts                  (resume HTML → PDF converter)
+    │   ├── billing.ts              (auto charge → auto credit OpenAI usage)
+    │   └── utils.ts
+    │
+    ├── styles/
+    │   ├── globals.css
+    │   └── theme.css
+    │
+    └── types/
+        ├── resume.ts               (Resume data schema typing)
+        └── index.d.ts
