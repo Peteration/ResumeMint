@@ -1,9 +1,14 @@
+// src/app/api/pdf/route.ts
 import { NextResponse } from "next/server";
 import puppeteer from "puppeteer";
 
+/**
+ * PDF generation endpoint.
+ * Converts HTML content sent via POST into a PDF buffer.
+ */
 export async function POST(req: Request) {
   try {
-    const { html } = await req.json();
+    const { html, filename } = await req.json();
 
     if (!html) {
       return NextResponse.json(
@@ -12,44 +17,32 @@ export async function POST(req: Request) {
       );
     }
 
-    // Launch browser
+    // Launch browser in headless mode compatible with Netlify
     const browser = await puppeteer.launch({
-      headless: "new",
+      headless: true, // type-safe boolean
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
     const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
 
-    // Set HTML content for PDF export
-    await page.setContent(html, {
-      waitUntil: "networkidle0",
-    });
-
-    // Generate PDF
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: {
-        top: "20mm",
-        bottom: "20mm",
-        left: "15mm",
-        right: "15mm",
-      },
     });
 
     await browser.close();
 
-    return new NextResponse(pdfBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=resume.pdf",
-      },
+    // Return PDF as base64 so Next.js API can send it
+    return NextResponse.json({
+      success: true,
+      filename: filename || "document.pdf",
+      pdfBase64: pdfBuffer.toString("base64"),
     });
-  } catch (error) {
-    console.error("PDF EXPORT ERROR:", error);
+  } catch (error: any) {
+    console.error("PDF generation error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to generate PDF" },
+      { success: false, error: "PDF generation failed" },
       { status: 500 }
     );
   }
