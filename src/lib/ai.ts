@@ -12,7 +12,7 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
 /**
@@ -28,4 +28,24 @@ export async function generateText(prompt: string) {
       temperature: 0.7,
     });
 
-    return completion.choices
+    return completion.choices?.[0]?.message?.content ?? "";
+  } catch (error) {
+    console.error("❌ OpenAI generation error:", error);
+    return "";
+  }
+}
+
+/**
+ * Example reusable generator for resume sections
+ */
+export async function generateResumeSection(type: string, data: any) {
+  const prompt = `
+Create a ${type} section for a resume using the following data:
+
+${JSON.stringify(data, null, 2)}
+
+Ensure the result is clean, professional, ATS-friendly.
+  `;
+
+  return generateText(prompt);
+}
