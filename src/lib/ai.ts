@@ -2,9 +2,8 @@
 import OpenAI from "openai";
 
 /**
- * Centralized OpenAI client for ResumeMint.
- * This file fixes all `@/lib/ai` import errors.
- * Works in: server actions, API routes, edge, and RSC.
+ * Centralized OpenAI client for ResumeMint
+ * Fixes all "@/lib/ai" import errors.
  */
 
 if (!process.env.OPENAI_API_KEY) {
@@ -16,8 +15,7 @@ export const openai = new OpenAI({
 });
 
 /**
- * Helper to generate text safely.
- * Optional utility function (you can delete it if not needed).
+ * Generic helper to generate text
  */
 export async function generateText(prompt: string) {
   try {
@@ -30,21 +28,37 @@ export async function generateText(prompt: string) {
 
     return completion.choices?.[0]?.message?.content ?? "";
   } catch (error) {
-    console.error("❌ OpenAI generation error:", error);
+    console.error("❌ OpenAI Error:", error);
     return "";
   }
 }
 
 /**
- * Example reusable generator for resume sections
+ * Reusable generator for specific resume sections
  */
 export async function generateResumeSection(type: string, data: any) {
   const prompt = `
-Create a ${type} section for a resume using the following data:
+Create a professional ${type} section for a resume using this data:
 
 ${JSON.stringify(data, null, 2)}
 
-Ensure the result is clean, professional, ATS-friendly.
+Ensure it is clean, concise, ATS-friendly, and well formatted.
+  `;
+
+  return generateText(prompt);
+}
+
+/**
+ * 🔥 MAIN EXPORT USED IN UI (Fixes the missing import error)
+ * This is what your editor & builder expect.
+ */
+export async function generateResumeAI(data: any) {
+  const prompt = `
+Create a clean, professional, ATS-optimized resume output based on the following data:
+
+${JSON.stringify(data, null, 2)}
+
+Return only high-quality resume content.
   `;
 
   return generateText(prompt);
