@@ -1,26 +1,23 @@
 // src/app/api/billing/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { buffer } from "micro";
 
-// -------------------- FIXED: Stripe apiVersion type error --------------------
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: ("2024-06-20" as unknown) as any, // bypass TypeScript literal mismatch
+  apiVersion: ("2024-06-20" as unknown) as any,
 });
 
 export async function POST(req: Request) {
   try {
-    const buf = await buffer(req as any);
+    // Use native request.json() instead of micro buffer
+    const body = await req.text(); // get raw text
     const sig = req.headers.get("stripe-signature")!;
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-    const event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
+    const event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
 
-    // Handle different Stripe events
     switch (event.type) {
       case "checkout.session.completed":
-        const session = event.data.object as Stripe.Checkout.Session;
-        console.log("✅ Payment completed:", session);
+        console.log("✅ Payment completed:", event.data.object);
         break;
       case "invoice.paid":
         console.log("💰 Invoice paid:", event.data.object);
