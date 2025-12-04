@@ -1,88 +1,40 @@
-// src/app/api/billing/route.ts
+// src/app/api/billing/webhook/route.ts
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import axios from "axios";
-import { supabase } from "@/lib/supabaseClient";
+import { buffer } from "micro";
 
-/**
- * FIXED: Stripe API version type error
- * Use "as any" to prevent TypeScript literal mismatch
- */
+// -------------------- FIXED: Stripe apiVersion type error --------------------
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-06-20",
-} as any);
+  apiVersion: ("2024-06-20" as unknown) as any, // bypass TypeScript literal mismatch
+});
 
 export async function POST(req: Request) {
   try {
-    const { plan, email, amount, method, userId } = await req.json();
+    const buf = await buffer(req as any);
+    const sig = req.headers.get("stripe-signature")!;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-    if (!plan || !email || !amount || !method || !userId) {
-      return NextResponse.json(
-        { success: false, error: "Missing parameters" },
-        { status: 400 }
-      );
+    const event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
+
+    // Handle different Stripe events
+    switch (event.type) {
+      case "checkout.session.completed":
+        const session = event.data.object as Stripe.Checkout.Session;
+        console.log("✅ Payment completed:", session);
+        break;
+      case "invoice.paid":
+        console.log("💰 Invoice paid:", event.data.object);
+        break;
+      case "invoice.payment_failed":
+        console.log("❌ Payment failed:", event.data.object);
+        break;
+      default:
+        console.log(`Unhandled event type ${event.type}`);
     }
 
-    // ------------------------------ STRIPE PAYMENT ------------------------------
-    if (method === "stripe") {
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: { name: `${plan} Plan - ResumeMint` },
-              unit_amount: amount * 100,
-            },
-            quantity: 1,
-          },
-        ],
-        mode: "payment",
-        customer_email: email,
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success&userId=${userId}`,
-        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=cancel`,
-      });
-
-      return NextResponse.json({
-        success: true,
-        method,
-        url: session.url,
-      });
-    }
-
-    // ------------------------------ PAYSTACK PAYMENT ------------------------------
-    if (method === "paystack") {
-      const res = await axios.post(
-        "https://api.paystack.co/transaction/initialize",
-        {
-          email,
-          amount: amount * 100,
-          callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?payment=success&userId=${userId}`,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      return NextResponse.json({
-        success: true,
-        method,
-        url: res.data.data.authorization_url,
-      });
-    }
-
-    return NextResponse.json(
-      { success: false, error: "Invalid payment method" },
-      { status: 400 }
-    );
-  } catch (error: any) {
-    console.error("BILLING ERROR:", error.response?.data || error.message);
-    return NextResponse.json(
-      { success: false, error: "Payment initialization failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ received: true });
+  } catch (err: any) {
+    console.error("WEBHOOK ERROR:", err.message);
+    return NextResponse.json({ error: "Webhook handling failed" }, { status: 400 });
   }
 }
