@@ -2,30 +2,72 @@
 
 import { useState, useEffect } from "react";
 import { supabase, getUserPremiumStatus } from "@/lib/supabaseClient";
-import { generateResumeAI } from "@/lib/ai"; // assume this calls your /api/ai
-import { savePDF } from "@/lib/pdf"; // your PDF generator helper
+import { generateResumeAI } from "@/lib/ai";
+import { savePDF } from "@/lib/pdf";
 import Classic from "@/components/resume-templates/Classic";
 import Modern from "@/components/resume-templates/Modern";
 import Elegant from "@/components/resume-templates/Elegant";
+import { Document, Page, Text, StyleSheet } from "@react-pdf/renderer";
+
+// PDF Component
+const styles = StyleSheet.create({
+  page: { padding: 30, fontSize: 12 },
+  header: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
+  section: { marginBottom: 8 },
+});
+
+const ResumePDF = ({ resume }: { resume: ResumeType }) => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      <Text style={styles.header}>{resume.fullName}</Text>
+      <Text>{resume.role}</Text>
+      <Text style={styles.section}>{resume.summary}</Text>
+      <Text style={styles.section}>Skills: {resume.skills.join(", ")}</Text>
+      {resume.experience.map((exp, i) => (
+        <Text key={i} style={styles.section}>
+          {exp.title} at {exp.company} ({exp.start} - {exp.end})
+        </Text>
+      ))}
+      {resume.education.map((edu, i) => (
+        <Text key={i} style={styles.section}>
+          {edu.degree} at {edu.school} ({edu.start} - {edu.end})
+        </Text>
+      ))}
+    </Page>
+  </Document>
+);
+
+type ResumeType = {
+  fullName: string;
+  role: string;
+  email: string;
+  phone: string;
+  location: string;
+  summary: string;
+  skills: string[];
+  skillInput: string;
+  experience: { company: string; title: string; start: string; end: string; description: string }[];
+  education: { school: string; degree: string; start: string; end: string }[];
+};
 
 export default function ResumeEditor() {
   const [user, setUser] = useState<any>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
-  const [resume, setResume] = useState({
+  const [resume, setResume] = useState<ResumeType>({
     fullName: "",
     role: "",
     email: "",
     phone: "",
     location: "",
     summary: "",
-    skills: [] as string[],
+    skills: [],
     skillInput: "",
     experience: [{ company: "", title: "", start: "", end: "", description: "" }],
     education: [{ school: "", degree: "", start: "", end: "" }],
   });
 
-  // Load user session and premium status
+  // Load user session & premium status
   useEffect(() => {
     const loadUser = async () => {
       const { data } = await supabase.auth.getSession();
@@ -40,10 +82,9 @@ export default function ResumeEditor() {
     loadUser();
   }, []);
 
-  // Update field helper
-  const updateField = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  // Field update helper
+  const updateField = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setResume({ ...resume, [field]: e.target.value });
-  };
 
   // Skills handlers
   const addSkill = () => {
@@ -60,16 +101,13 @@ export default function ResumeEditor() {
   const addEducation = () =>
     setResume({ ...resume, education: [...resume.education, { school: "", degree: "", start: "", end: "" }] });
 
-  // AI Resume Generator (fixed)
+  // AI Resume Generation
   const handleAIGenerate = async () => {
-    if (!isPremium) {
-      alert("AI Resume generation is available for Premium users only.");
-      return;
-    }
+    if (!isPremium) return alert("AI Resume generation is for Premium users only.");
     setLoadingAI(true);
     try {
-      const data = await generateResumeAI(resume); // returns string
-      setResume((prev) => ({ ...prev, summary: data })); // fixed: use data directly
+      const data = await generateResumeAI(resume);
+      setResume((prev) => ({ ...prev, summary: data }));
     } catch (err) {
       console.error(err);
       alert("Failed to generate resume via AI.");
@@ -78,12 +116,18 @@ export default function ResumeEditor() {
     }
   };
 
-  // PDF Export
+  // PDF Download
   const handlePDFDownload = async () => {
-    savePDF(resume);
+    const blob = await savePDF(<ResumePDF resume={resume} />);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${resume.fullName}_resume.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  // Template rendering
+  // Template selection
   const templates = { Classic, Modern, Elegant };
   const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof templates>("Classic");
   const SelectedTemplate = templates[selectedTemplate];
@@ -108,10 +152,7 @@ export default function ResumeEditor() {
         </button>
 
         {isPremium && (
-          <button
-            onClick={handleAIGenerate}
-            className="mt-4 w-full p-2 bg-green-600 rounded hover:bg-green-500"
-          >
+          <button onClick={handleAIGenerate} className="mt-4 w-full p-2 bg-green-600 rounded hover:bg-green-500">
             {loadingAI ? "Generating..." : "AI Generate Summary"}
           </button>
         )}
