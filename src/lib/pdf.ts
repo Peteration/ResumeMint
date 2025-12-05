@@ -1,27 +1,17 @@
 // src/lib/pdf.ts
+"use client";
+
+import { pdf } from "@react-pdf/renderer";
+import type { ReactElement } from "react";
 
 /**
- * savePDF() calls your API route `/api/pdf`
- * so the client/editor can export resumes without bundling puppeteer.
- *
- * This file ONLY exists to satisfy imports like:
- * import { savePDF } from "@/lib/pdf"
+ * savePDF() generates a PDF blob from a React PDF component.
+ * Fully client-side, works on Netlify.
  */
-
-export async function savePDF(html: string) {
+export async function savePDF(component: ReactElement) {
   try {
-    const res = await fetch("/api/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html }),
-    });
-
-    if (!res.ok) {
-      throw new Error("Failed to generate PDF");
-    }
-
-    const blob = await res.blob();
-    return blob; // caller downloads the PDF
+    const blob = await pdf(component).toBlob();
+    return blob;
   } catch (err) {
     console.error("savePDF error:", err);
     throw err;
