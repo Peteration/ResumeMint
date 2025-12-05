@@ -60,7 +60,7 @@ export default function ResumeEditor() {
   const addEducation = () =>
     setResume({ ...resume, education: [...resume.education, { school: "", degree: "", start: "", end: "" }] });
 
-  // AI Resume Generator
+  // AI Resume Generator (fixed)
   const handleAIGenerate = async () => {
     if (!isPremium) {
       alert("AI Resume generation is available for Premium users only.");
@@ -68,8 +68,8 @@ export default function ResumeEditor() {
     }
     setLoadingAI(true);
     try {
-      const data = await generateResumeAI(resume);
-      setResume((prev) => ({ ...prev, summary: data.result }));
+      const data = await generateResumeAI(resume); // returns string
+      setResume((prev) => ({ ...prev, summary: data })); // fixed: use data directly
     } catch (err) {
       console.error(err);
       alert("Failed to generate resume via AI.");
