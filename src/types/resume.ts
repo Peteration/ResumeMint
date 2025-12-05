@@ -1,28 +1,42 @@
-// src/types/resume.ts
-
-export type Experience = {
-  company: string;
+export interface ResumeSection {
+  id: string;
   title: string;
-  start: string;
-  end: string;
-  description: string;
-};
+  items: ResumeItem[];
+}
 
-export type Education = {
-  school: string;
-  degree: string;
-  start: string;
-  end: string;
-};
+export interface ResumeItem {
+  id: string;
+  subtitle?: string;
+  title?: string;
+  date?: string;
+  description?: string;
+  bullets?: string[];
+}
 
-export type ResumeType = {
+export interface Resume {
+  id: string;
+  user_id?: string;
+
+  // Basic Info
   fullName: string;
-  role: string;
+  title: string;
   email: string;
   phone: string;
   location: string;
-  summary: string;
-  skills: string[];
-  experience: Experience[];
-  education: Education[];
-};
+  website?: string;
+  linkedin?: string;
+  github?: string;
+
+  // Optional Summary
+  summary?: string;
+
+  // Sections such as experience, education, etc.
+  sections: ResumeSection[];
+
+  // Template Selection
+  template: "classic" | "modern" | "elegant";
+
+  // Timestamp
+  created_at?: string;
+  updated_at?: string;
+}
