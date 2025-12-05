@@ -1,30 +1,37 @@
 // src/lib/pdf.ts
 
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+
 /**
- * savePDF() calls your API route `/api/pdf`
- * so the client/editor can export resumes without bundling puppeteer.
- *
- * This file ONLY exists to satisfy imports like:
- * import { savePDF } from "@/lib/pdf"
+ * Client-side PDF generator using HTML → Canvas → PDF.
+ * Works on Netlify, Vercel, and all static hosts.
  */
 
-export async function savePDF(html: string) {
+export async function savePDFClient() {
   try {
-    const res = await fetch("/api/pdf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html }),
+    const element = document.getElementById("resume-preview");
+    if (!element) throw new Error("Resume preview not found");
+
+    // Capture screenshot
+    const canvas = await html2canvas(element, {
+      scale: 2, // better quality
+      useCORS: true,
     });
 
-    if (!res.ok) {
-      throw new Error("Failed to generate PDF");
-    }
+    const imgData = canvas.toDataURL("image/png");
 
-    const blob = await res.blob();
+    // Create PDF
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pdfWidth = 210;
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-    return blob; // caller handles download
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+    pdf.save("resume.pdf");
   } catch (err) {
-    console.error("savePDF error:", err);
+    console.error("PDF EXPORT ERROR:", err);
     throw err;
   }
 }
