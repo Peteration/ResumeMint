@@ -23,7 +23,11 @@
     "openai": "^4.57.0",
     "@supabase/supabase-js": "^2.46.0",
     "puppeteer": "^22.12.1",
-    "lucide-react": "^0.460.0"
+    "lucide-react": "^0.460.0" 
+    "engines": {
+    "node": "18.x"
+}
+
   },
   "devDependencies": {
     "@types/node": "20.12.7",
