@@ -3,40 +3,14 @@
 import { useState, useEffect } from "react";
 import { supabase, getUserPremiumStatus } from "@/lib/supabaseClient";
 import { generateResumeAI } from "@/lib/ai";
-import { savePDF } from "@/lib/pdf";
+
 import Classic from "@/components/resume-templates/Classic";
 import Modern from "@/components/resume-templates/Modern";
 import Elegant from "@/components/resume-templates/Elegant";
-import { Document, Page, Text, StyleSheet } from "@react-pdf/renderer";
 
-// PDF Component
-const styles = StyleSheet.create({
-  page: { padding: 30, fontSize: 12 },
-  header: { fontSize: 20, fontWeight: "bold", marginBottom: 10 },
-  section: { marginBottom: 8 },
-});
-
-const ResumePDF = ({ resume }: { resume: ResumeType }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      <Text style={styles.header}>{resume.fullName}</Text>
-      <Text>{resume.role}</Text>
-      <Text style={styles.section}>{resume.summary}</Text>
-      <Text style={styles.section}>Skills: {resume.skills.join(", ")}</Text>
-      {resume.experience.map((exp, i) => (
-        <Text key={i} style={styles.section}>
-          {exp.title} at {exp.company} ({exp.start} - {exp.end})
-        </Text>
-      ))}
-      {resume.education.map((edu, i) => (
-        <Text key={i} style={styles.section}>
-          {edu.degree} at {edu.school} ({edu.start} - {edu.end})
-        </Text>
-      ))}
-    </Page>
-  </Document>
-);
-
+// -------------------------------------------
+// TYPES
+// -------------------------------------------
 type ResumeType = {
   fullName: string;
   role: string;
@@ -46,14 +20,31 @@ type ResumeType = {
   summary: string;
   skills: string[];
   skillInput: string;
-  experience: { company: string; title: string; start: string; end: string; description: string }[];
-  education: { school: string; degree: string; start: string; end: string }[];
+
+  experience: {
+    company: string;
+    title: string;
+    start: string;
+    end: string;
+    description: string;
+  }[];
+
+  education: {
+    school: string;
+    degree: string;
+    start: string;
+    end: string;
+  }[];
 };
 
+// -------------------------------------------
+// MAIN EDITOR COMPONENT
+// -------------------------------------------
 export default function ResumeEditor() {
   const [user, setUser] = useState<any>(null);
   const [isPremium, setIsPremium] = useState(false);
   const [loadingAI, setLoadingAI] = useState(false);
+
   const [resume, setResume] = useState<ResumeType>({
     fullName: "",
     role: "",
@@ -63,11 +54,15 @@ export default function ResumeEditor() {
     summary: "",
     skills: [],
     skillInput: "",
-    experience: [{ company: "", title: "", start: "", end: "", description: "" }],
+    experience: [
+      { company: "", title: "", start: "", end: "", description: "" },
+    ],
     education: [{ school: "", degree: "", start: "", end: "" }],
   });
 
+  // -------------------------------------------
   // Load user session & premium status
+  // -------------------------------------------
   useEffect(() => {
     const loadUser = async () => {
       const { data } = await supabase.auth.getSession();
@@ -82,28 +77,61 @@ export default function ResumeEditor() {
     loadUser();
   }, []);
 
+  // -------------------------------------------
   // Field update helper
-  const updateField = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setResume({ ...resume, [field]: e.target.value });
+  // -------------------------------------------
+  const updateField =
+    (field: string) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setResume({ ...resume, [field]: e.target.value });
 
-  // Skills handlers
+  // -------------------------------------------
+  // Skills
+  // -------------------------------------------
   const addSkill = () => {
     if (!resume.skillInput.trim()) return;
-    setResume({ ...resume, skills: [...resume.skills, resume.skillInput.trim()], skillInput: "" });
+    setResume({
+      ...resume,
+      skills: [...resume.skills, resume.skillInput.trim()],
+      skillInput: "",
+    });
   };
+
   const removeSkill = (skill: string) => {
-    setResume({ ...resume, skills: resume.skills.filter((s) => s !== skill) });
+    setResume({
+      ...resume,
+      skills: resume.skills.filter((s) => s !== skill),
+    });
   };
 
-  // Experience & Education handlers
+  // -------------------------------------------
+  // Experience & Education Handlers
+  // -------------------------------------------
   const addExperience = () =>
-    setResume({ ...resume, experience: [...resume.experience, { company: "", title: "", start: "", end: "", description: "" }] });
-  const addEducation = () =>
-    setResume({ ...resume, education: [...resume.education, { school: "", degree: "", start: "", end: "" }] });
+    setResume({
+      ...resume,
+      experience: [
+        ...resume.experience,
+        { company: "", title: "", start: "", end: "", description: "" },
+      ],
+    });
 
-  // AI Resume Generation
+  const addEducation = () =>
+    setResume({
+      ...resume,
+      education: [
+        ...resume.education,
+        { school: "", degree: "", start: "", end: "" },
+      ],
+    });
+
+  // -------------------------------------------
+  // AI Resume Summary Generation
+  // -------------------------------------------
   const handleAIGenerate = async () => {
-    if (!isPremium) return alert("AI Resume generation is for Premium users only.");
+    if (!isPremium)
+      return alert("AI Resume generation is for Premium users only.");
+
     setLoadingAI(true);
     try {
       const data = await generateResumeAI(resume);
@@ -116,61 +144,119 @@ export default function ResumeEditor() {
     }
   };
 
-  // PDF Download
+  // -------------------------------------------
+  // PDF Download (uses API route)
+  // -------------------------------------------
   const handlePDFDownload = async () => {
-    const blob = await savePDF(<ResumePDF resume={resume} />);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${resume.fullName}_resume.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!user?.id) return alert("Please log in first.");
+
+    // Step 1: Save resume to database
+    const { data, error } = await supabase
+      .from("resumes")
+      .upsert([{ ...resume, user_id: user.id }])
+      .select()
+      .single();
+
+    if (!data) {
+      console.error(error);
+      return alert("Failed to save resume before PDF generation.");
+    }
+
+    // Step 2: Download via server-side PDF route
+    window.open(`/resume/${data.id}/pdf`, "_blank");
   };
 
-  // Template selection
+  // -------------------------------------------
+  // Templates
+  // -------------------------------------------
   const templates = { Classic, Modern, Elegant };
-  const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof templates>("Classic");
+  const [selectedTemplate, setSelectedTemplate] =
+    useState<keyof typeof templates>("Classic");
   const SelectedTemplate = templates[selectedTemplate];
 
+  // -------------------------------------------
+  // JSX RENDER
+  // -------------------------------------------
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden">
       {/* Sidebar */}
       <aside className="w-full md:w-48 bg-gray-900 text-white p-4 flex-shrink-0">
         <h2 className="text-lg font-bold mb-4">Templates</h2>
+
         {Object.keys(templates).map((temp) => (
           <button
             key={temp}
-            className={`w-full text-left p-2 mb-2 rounded ${selectedTemplate === temp ? "bg-blue-600" : "bg-gray-800"}`}
-            onClick={() => setSelectedTemplate(temp as keyof typeof templates)}
+            className={`w-full text-left p-2 mb-2 rounded ${
+              selectedTemplate === temp ? "bg-blue-600" : "bg-gray-800"
+            }`}
+            onClick={() =>
+              setSelectedTemplate(temp as keyof typeof templates)
+            }
           >
             {temp}
           </button>
         ))}
 
-        <button onClick={handlePDFDownload} className="mt-6 w-full p-2 bg-blue-600 rounded hover:bg-blue-500">
+        <button
+          onClick={handlePDFDownload}
+          className="mt-6 w-full p-2 bg-blue-600 rounded hover:bg-blue-500"
+        >
           Download PDF
         </button>
 
         {isPremium && (
-          <button onClick={handleAIGenerate} className="mt-4 w-full p-2 bg-green-600 rounded hover:bg-green-500">
+          <button
+            onClick={handleAIGenerate}
+            className="mt-4 w-full p-2 bg-green-600 rounded hover:bg-green-500"
+          >
             {loadingAI ? "Generating..." : "AI Generate Summary"}
           </button>
         )}
       </aside>
 
-      {/* Editor Form */}
+      {/* Editor */}
       <main className="flex-1 overflow-y-auto p-4">
         <h1 className="text-2xl font-bold mb-4">Resume Details</h1>
 
         <div className="grid md:grid-cols-2 gap-4">
-          <input className="input" placeholder="Full Name" value={resume.fullName} onChange={updateField("fullName")} />
-          <input className="input" placeholder="Role" value={resume.role} onChange={updateField("role")} />
-          <input className="input" placeholder="Email" value={resume.email} onChange={updateField("email")} />
-          <input className="input" placeholder="Phone" value={resume.phone} onChange={updateField("phone")} />
-          <input className="input md:col-span-2" placeholder="Location" value={resume.location} onChange={updateField("location")} />
+          <input
+            className="input"
+            placeholder="Full Name"
+            value={resume.fullName}
+            onChange={updateField("fullName")}
+          />
+          <input
+            className="input"
+            placeholder="Role"
+            value={resume.role}
+            onChange={updateField("role")}
+          />
+          <input
+            className="input"
+            placeholder="Email"
+            value={resume.email}
+            onChange={updateField("email")}
+          />
+          <input
+            className="input"
+            placeholder="Phone"
+            value={resume.phone}
+            onChange={updateField("phone")}
+          />
+          <input
+            className="input md:col-span-2"
+            placeholder="Location"
+            value={resume.location}
+            onChange={updateField("location")}
+          />
         </div>
 
-        <textarea className="input h-24 mt-4" placeholder="Professional Summary" value={resume.summary} onChange={updateField("summary")} />
+        <textarea
+          className="input h-24 mt-4"
+          placeholder="Professional Summary"
+          value={resume.summary}
+          onChange={updateField("summary")}
+        />
 
         {/* Skills */}
         <div className="mt-6">
@@ -180,15 +266,25 @@ export default function ResumeEditor() {
               className="input flex-1"
               placeholder="Add skill"
               value={resume.skillInput}
-              onChange={(e) => setResume({ ...resume, skillInput: e.target.value })}
+              onChange={(e) =>
+                setResume({ ...resume, skillInput: e.target.value })
+              }
             />
-            <button onClick={addSkill} className="px-4 bg-blue-600 text-white rounded">
+            <button
+              onClick={addSkill}
+              className="px-4 bg-blue-600 text-white rounded"
+            >
               Add
             </button>
           </div>
+
           <div className="flex flex-wrap gap-2 mt-2">
             {resume.skills.map((skill) => (
-              <span key={skill} className="px-3 py-1 bg-gray-200 rounded-full text-sm cursor-pointer" onClick={() => removeSkill(skill)}>
+              <span
+                key={skill}
+                className="px-3 py-1 bg-gray-200 rounded-full text-sm cursor-pointer"
+                onClick={() => removeSkill(skill)}
+              >
                 {skill} ✕
               </span>
             ))}
@@ -198,36 +294,66 @@ export default function ResumeEditor() {
         {/* Experience */}
         <div className="mt-6">
           <h2 className="font-semibold mb-2">Experience</h2>
+
           {resume.experience.map((exp, i) => (
             <div key={i} className="grid md:grid-cols-2 gap-2 mb-4">
-              <input className="input" placeholder="Company" value={exp.company} onChange={(e) => {
-                const copy = [...resume.experience];
-                copy[i].company = e.target.value;
-                setResume({ ...resume, experience: copy });
-              }} />
-              <input className="input" placeholder="Title" value={exp.title} onChange={(e) => {
-                const copy = [...resume.experience];
-                copy[i].title = e.target.value;
-                setResume({ ...resume, experience: copy });
-              }} />
-              <input className="input" placeholder="Start" value={exp.start} onChange={(e) => {
-                const copy = [...resume.experience];
-                copy[i].start = e.target.value;
-                setResume({ ...resume, experience: copy });
-              }} />
-              <input className="input" placeholder="End" value={exp.end} onChange={(e) => {
-                const copy = [...resume.experience];
-                copy[i].end = e.target.value;
-                setResume({ ...resume, experience: copy });
-              }} />
-              <textarea className="input md:col-span-2 h-20" placeholder="Description" value={exp.description} onChange={(e) => {
-                const copy = [...resume.experience];
-                copy[i].description = e.target.value;
-                setResume({ ...resume, experience: copy });
-              }} />
+              <input
+                className="input"
+                placeholder="Company"
+                value={exp.company}
+                onChange={(e) => {
+                  const copy = [...resume.experience];
+                  copy[i].company = e.target.value;
+                  setResume({ ...resume, experience: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="Title"
+                value={exp.title}
+                onChange={(e) => {
+                  const copy = [...resume.experience];
+                  copy[i].title = e.target.value;
+                  setResume({ ...resume, experience: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="Start"
+                value={exp.start}
+                onChange={(e) => {
+                  const copy = [...resume.experience];
+                  copy[i].start = e.target.value;
+                  setResume({ ...resume, experience: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="End"
+                value={exp.end}
+                onChange={(e) => {
+                  const copy = [...resume.experience];
+                  copy[i].end = e.target.value;
+                  setResume({ ...resume, experience: copy });
+                }}
+              />
+              <textarea
+                className="input md:col-span-2 h-20"
+                placeholder="Description"
+                value={exp.description}
+                onChange={(e) => {
+                  const copy = [...resume.experience];
+                  copy[i].description = e.target.value;
+                  setResume({ ...resume, experience: copy });
+                }}
+              />
             </div>
           ))}
-          <button onClick={addExperience} className="px-4 py-2 bg-gray-800 text-white rounded">
+
+          <button
+            onClick={addExperience}
+            className="px-4 py-2 bg-gray-800 text-white rounded"
+          >
             + Add Experience
           </button>
         </div>
@@ -235,31 +361,56 @@ export default function ResumeEditor() {
         {/* Education */}
         <div className="mt-6 mb-20">
           <h2 className="font-semibold mb-2">Education</h2>
+
           {resume.education.map((edu, i) => (
             <div key={i} className="grid md:grid-cols-2 gap-2 mb-4">
-              <input className="input" placeholder="School" value={edu.school} onChange={(e) => {
-                const copy = [...resume.education];
-                copy[i].school = e.target.value;
-                setResume({ ...resume, education: copy });
-              }} />
-              <input className="input" placeholder="Degree" value={edu.degree} onChange={(e) => {
-                const copy = [...resume.education];
-                copy[i].degree = e.target.value;
-                setResume({ ...resume, education: copy });
-              }} />
-              <input className="input" placeholder="Start" value={edu.start} onChange={(e) => {
-                const copy = [...resume.education];
-                copy[i].start = e.target.value;
-                setResume({ ...resume, education: copy });
-              }} />
-              <input className="input" placeholder="End" value={edu.end} onChange={(e) => {
-                const copy = [...resume.education];
-                copy[i].end = e.target.value;
-                setResume({ ...resume, education: copy });
-              }} />
+              <input
+                className="input"
+                placeholder="School"
+                value={edu.school}
+                onChange={(e) => {
+                  const copy = [...resume.education];
+                  copy[i].school = e.target.value;
+                  setResume({ ...resume, education: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="Degree"
+                value={edu.degree}
+                onChange={(e) => {
+                  const copy = [...resume.education];
+                  copy[i].degree = e.target.value;
+                  setResume({ ...resume, education: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="Start"
+                value={edu.start}
+                onChange={(e) => {
+                  const copy = [...resume.education];
+                  copy[i].start = e.target.value;
+                  setResume({ ...resume, education: copy });
+                }}
+              />
+              <input
+                className="input"
+                placeholder="End"
+                value={edu.end}
+                onChange={(e) => {
+                  const copy = [...resume.education];
+                  copy[i].end = e.target.value;
+                  setResume({ ...resume, education: copy });
+                }}
+              />
             </div>
           ))}
-          <button onClick={addEducation} className="px-4 py-2 bg-gray-800 text-white rounded">
+
+          <button
+            onClick={addEducation}
+            className="px-4 py-2 bg-gray-800 text-white rounded"
+          >
             + Add Education
           </button>
         </div>
