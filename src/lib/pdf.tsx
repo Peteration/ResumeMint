@@ -3,7 +3,7 @@ import { Resume } from "@/types/resume";
 import PDFDocument from "pdfkit";
 import { Readable } from "stream";
 
-// Returns a Node.js stream (works perfectly on Netlify + Vercel)
+// Generate a Node.js stream of PDF
 export function generateResumePDF(resume: Resume): Readable {
   const doc = new PDFDocument({ margin: 50 });
   const stream = new Readable({ read() {} });
@@ -13,7 +13,7 @@ export function generateResumePDF(resume: Resume): Readable {
 
   // Header
   doc.fontSize(22).text(resume.fullName, { bold: true });
-  doc.fontSize(14).text(resume.title);
+  doc.fontSize(14).text(resume.role);
   doc.moveDown();
 
   // Contact
@@ -42,11 +42,9 @@ export function generateResumePDF(resume: Resume): Readable {
       if (item.subtitle) doc.text(item.subtitle);
       if (item.date) doc.text(item.date);
       if (item.description) doc.text(item.description);
-
       if (item.bullets?.length) {
         item.bullets.forEach((b) => doc.text("• " + b));
       }
-
       doc.moveDown();
     });
 
