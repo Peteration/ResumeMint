@@ -1,29 +1,29 @@
+// src/app/resume/[id]/pdf/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { generateResumePDF } from "@/lib/pdf";
+import { getResumeById } from "@/lib/supabase/server"; // server-only
+import type { Resume } from "@/types/resume";
 
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
+  const resumeId = params.id;
 
-  const { data: resume, error } = await supabase
-    .from("resumes")
-    .select("*")
-    .eq("id", params.id)
-    .single();
+  // Fetch resume data from Supabase
+  const resume: Resume = await getResumeById(resumeId);
 
-  if (!resume) {
-    return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+  const stream = generateResumePDF(resume);
+  const chunks: Uint8Array[] = [];
+
+  for await (const chunk of stream) {
+    chunks.push(chunk);
   }
 
-  const pdfBuffer = await generateResumePDF(resume);
+  const buffer = Buffer.concat(chunks);
 
-  return new NextResponse(pdfBuffer, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="resume-${params.id}.pdf"`,
-    },
+  return new Response(buffer, {
+    status: 200,
+    headers: { "Content-Type": "application/pdf" },
   });
 }
