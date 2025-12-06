@@ -1,47 +1,84 @@
-import { PDFDownloadLink, Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+"use server";
+
 import React from "react";
 import { Resume } from "@/types/resume";
+import {
+  Document,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  pdf,
+} from "@react-pdf/renderer";
 
 // PDF styles
 const styles = StyleSheet.create({
-  page: { padding: 30, fontSize: 12 },
-  section: { marginBottom: 10 },
-  header: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
-  subHeader: { fontSize: 14, fontWeight: "bold", marginTop: 10 },
+  page: { padding: 30, fontSize: 12, fontFamily: "Helvetica" },
+  section: { marginBottom: 12 },
+  header: { fontSize: 22, fontWeight: "bold", marginBottom: 6 },
+  subHeader: { fontSize: 16, fontWeight: "bold", marginTop: 12, marginBottom: 6 },
   text: { marginBottom: 2 },
 });
 
 export function ResumePDF({ resume }: { resume: Resume }) {
   return (
     <Document>
-      <Page style={styles.page}>
+      <Page size="A4" style={styles.page}>
+        {/* Header */}
         <Text style={styles.header}>{resume.fullName}</Text>
-        <Text style={styles.text}>{resume.role}</Text>
-        <Text style={styles.text}>{resume.email} · {resume.phone} · {resume.location}</Text>
+        <Text style={styles.text}>{resume.title}</Text>
+        <Text style={styles.text}>
+          {resume.email} · {resume.phone} · {resume.location}
+        </Text>
 
-        <Text style={styles.subHeader}>Summary</Text>
-        <Text>{resume.summary}</Text>
+        {/* Summary */}
+        {resume.summary && (
+          <>
+            <Text style={styles.subHeader}>Summary</Text>
+            <Text>{resume.summary}</Text>
+          </>
+        )}
 
-        <Text style={styles.subHeader}>Skills</Text>
-        <Text>{resume.skills.join(", ")}</Text>
+        {/* Sections */}
+        {resume.sections?.map((section) => (
+          <View key={section.id} style={styles.section}>
+            <Text style={styles.subHeader}>{section.title}</Text>
 
-        <Text style={styles.subHeader}>Experience</Text>
-        {resume.experience.map((exp, i) => (
-          <View key={i} style={styles.section}>
-            <Text style={{ fontWeight: "bold" }}>{exp.title} — {exp.company}</Text>
-            <Text style={styles.text}>{exp.start} - {exp.end}</Text>
-            <Text>{exp.description}</Text>
-          </View>
-        ))}
+            {section.items?.map((item) => (
+              <View key={item.id} style={{ marginBottom: 6 }}>
+                {item.title && (
+                  <Text style={{ fontWeight: "bold" }}>{item.title}</Text>
+                )}
 
-        <Text style={styles.subHeader}>Education</Text>
-        {resume.education.map((edu, i) => (
-          <View key={i} style={styles.section}>
-            <Text style={{ fontWeight: "bold" }}>{edu.degree} — {edu.school}</Text>
-            <Text style={styles.text}>{edu.start} - {edu.end}</Text>
+                {item.subtitle && (
+                  <Text style={{ fontStyle: "italic" }}>{item.subtitle}</Text>
+                )}
+
+                {item.date && <Text>{item.date}</Text>}
+
+                {item.description && <Text>{item.description}</Text>}
+
+                {item.bullets && item.bullets.length > 0 && (
+                  <View style={{ marginTop: 4 }}>
+                    {item.bullets.map((b, i) => (
+                      <Text key={i}>• {b}</Text>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
           </View>
         ))}
       </Page>
     </Document>
   );
+}
+
+/**
+ * Generates a PDF Buffer (Uint8Array) for API route streaming
+ */
+export async function generateResumePDF(resume: Resume) {
+  const blob = await pdf(<ResumePDF resume={resume} />).toBlob();
+  const arrayBuffer = await blob.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
