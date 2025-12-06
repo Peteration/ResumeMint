@@ -1,23 +1,60 @@
 // src/app/resume/[id]/page.tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Resume } from "@/types/resume";
 import Classic from "@/components/resume-templates/Classic";
 import Elegant from "@/components/resume-templates/Elegant";
 import Modern from "@/components/resume-templates/Modern";
-import { Download } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 
-export default async function ResumePage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function ResumePage() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
 
-  // Fetch resume server-side
-  const { data, error } = await supabase
-    .from("resumes")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const [resume, setResume] = useState<Resume | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (error || !data) {
-    console.error("Resume fetch error:", error);
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchResume = async () => {
+      const { data, error } = await supabase
+        .from("resumes")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error("Error fetching resume:", error);
+        setResume(null);
+      } else {
+        setResume(data);
+      }
+
+      setLoading(false);
+    };
+
+    fetchResume();
+  }, [id]);
+
+  const downloadPDF = () => {
+    if (!id) return;
+    window.open(`/api/pdf?resumeId=${id}`, "_blank");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[70vh]">
+        <Loader2 className="animate-spin w-6 h-6 text-indigo-600" />
+        <p className="ml-2 text-gray-500">Loading resume...</p>
+      </div>
+    );
+  }
+
+  if (!resume) {
     return (
       <div className="text-center py-20 text-gray-500">
         <p>Resume not found.</p>
@@ -25,13 +62,9 @@ export default async function ResumePage({ params }: { params: { id: string } })
     );
   }
 
-  const resume: Resume = data;
-
-  // Template resolution
-  const template = (resume.template || "modern").toLowerCase();
-
   let TemplateComponent;
-  switch (template) {
+
+  switch (resume.template.toLowerCase()) {
     case "classic":
       TemplateComponent = Classic;
       break;
@@ -44,19 +77,12 @@ export default async function ResumePage({ params }: { params: { id: string } })
       break;
   }
 
-  // PDF Download (client-side handler)
-  // We no longer call /api/pdf since it was removed.
-  const downloadPDF = () => {
-    window.location.href = `/resume/${id}/pdf`;
-  };
-
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          {resume.fullName}'s Resume
+          {resume.title}
         </h1>
-
         <button
           onClick={downloadPDF}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition"
